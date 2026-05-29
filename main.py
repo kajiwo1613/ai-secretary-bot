@@ -8,7 +8,6 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
-# あなたが気づいた最新のGemini部品の書き方です！
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 intents = discord.Intents.default()
@@ -24,7 +23,7 @@ async def on_ready():
 async def ask(ctx, *, question):
     try:
         response = client.models.generate_content(
-            model='gemini-pro',
+            model='gemini-1.5-flash',
             contents=f"あなたは優秀なAI秘書です。\n質問：{question}"
         )
         await ctx.send(response.text)
@@ -35,7 +34,7 @@ async def ask(ctx, *, question):
 async def pro(ctx, *, question):
     try:
         response = client.models.generate_content(
-            model='gemini-pro',
+            model='gemini-1.5-pro',
             contents=f"あなたは優秀なAI秘書です。論理的に答えてください。\n質問：{question}"
         )
         await ctx.send(response.text)
@@ -82,8 +81,9 @@ async def search(ctx, *, question):
         
         await ctx.send("🧠 リサーチが完了しました。現在、得られた事実を論理的に分析・統合しています...")
         
+        # ここを最新の「gemini-1.5-pro」に修正しました！
         answer = client.models.generate_content(
-            model='gemini-pro',
+            model='gemini-1.5-pro',
             contents=prompt
         )
         await ctx.send(answer.text)
@@ -92,4 +92,3 @@ async def search(ctx, *, question):
         await ctx.send(f"検索エラー原因：{e}")
 
 bot.run(DISCORD_TOKEN)
-
