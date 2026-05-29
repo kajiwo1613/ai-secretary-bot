@@ -19,37 +19,25 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"{bot.user} 起動成功")
 
-# 🌟 究極の診断コマンド：Googleに直接、使えるAIの名前リストを聞き出す！
-@bot.command()
-async def models(ctx):
-    await ctx.send("🔄 Googleのシステムに、現在使えるAIの名前リストを直接問い合わせています...")
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-        response = requests.get(url)
-        data = response.json()
-        
-        if "models" in data:
-            valid_names = []
-            for m in data["models"]:
-                if "supportedGenerationMethods" in m and "generateContent" in m["supportedGenerationMethods"]:
-                    valid_names.append(m["name"].replace("models/", ""))
-            
-            if valid_names:
-                msg = "\n".join(valid_names)
-                await ctx.send(f"✅ あなたの鍵で現在使えるAIのリストです！\n```text\n{msg}\n```\nこの中から好きな名前を選んで main.py に設定すれば、100%確実に動きます！")
-            else:
-                await ctx.send("⚠️ 利用可能なAIが見つかりません。APIキーの設定を確認してください。")
-        else:
-             await ctx.send(f"⚠️ エラー: {data}")
-    except Exception as e:
-        await ctx.send(f"通信エラー: {e}")
-
 @bot.command()
 async def ask(ctx, *, question):
     try:
+        # 💡 リストにあった最新の「gemini-2.5-flash」を設定
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash',
             contents=f"あなたは優秀なAI秘書です。\n質問：{question}"
+        )
+        await ctx.send(response.text)
+    except Exception as e:
+        await ctx.send(f"エラー原因：{e}")
+
+@bot.command()
+async def pro(ctx, *, question):
+    try:
+        # 💡 リストにあった最新で賢い「gemini-2.5-pro」を設定
+        response = client.models.generate_content(
+            model='gemini-2.5-pro',
+            contents=f"あなたは優秀なAI秘書です。論理的に答えてください。\n質問：{question}"
         )
         await ctx.send(response.text)
     except Exception as e:
@@ -91,9 +79,9 @@ async def search(ctx, *, question):
         
         await ctx.send("🧠 リサーチが完了しました。現在、得られた事実を論理的に分析・統合しています...")
         
-        # ※ここでエラーが出る場合は、!models で出た名前にここを書き換えます
+        # 💡 ここも最新の「gemini-2.5-pro」を設定
         answer = client.models.generate_content(
-            model='gemini-1.5-pro',
+            model='gemini-2.5-pro',
             contents=prompt
         )
         await ctx.send(answer.text)
