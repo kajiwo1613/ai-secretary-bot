@@ -22,11 +22,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 channel_modes = {}
 channel_histories = {}
-long_term_memories = {}  # 🌟 新機能：長期記憶（要約）
-channel_roles = {}       # 🌟 新機能：キャラクター（人格）設定
+long_term_memories = {}
+channel_roles = {}
 
 def get_history_text(channel_id):
-    """長期記憶と直近の会話履歴をセットにして取り出す"""
     long_term = long_term_memories.get(channel_id, "")
     history = channel_histories.get(channel_id, [])
     
@@ -47,19 +46,17 @@ def add_history(channel_id, role, text):
     channel_histories[channel_id].append({"role": role, "text": text})
 
 async def summarize_memory(channel_id):
-    """🌟 新機能：会話が長くなったら、AI自身に裏側で記憶を要約・整理させる"""
     history = channel_histories.get(channel_id, [])
-    if len(history) >= 8:  # 4往復ごとに記憶を整理
+    if len(history) >= 8:
         try:
             current_long = long_term_memories.get(channel_id, "")
             hist_text = "\n".join([f"{h['role']}: {h['text']}" for h in history])
             prompt = f"あなたは裏方の記憶整理係です。これまでの【長期記憶】と【直近の会話】を統合し、ユーザーの興味・前提知識・重要な話題を最新の【要約記憶】として箇条書きで更新してください。\n\n【長期記憶】\n{current_long}\n\n【直近の会話】\n{hist_text}"
             
-            await asyncio.sleep(3) # API制限回避の深呼吸
+            await asyncio.sleep(3)
             res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             if res.text:
                 long_term_memories[channel_id] = res.text
-                # 記憶に定着させたので、古い直近履歴を半分消して脳をスッキリさせる
                 channel_histories[channel_id] = channel_histories[channel_id][-4:]
         except Exception:
             pass
@@ -77,16 +74,14 @@ async def send_response(channel, text):
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} 起動成功 - 全部特盛ハイブリッド版")
+    print(f"{bot.user} 起動成功 - タブレット入力最適化版")
 
-# 🌟 新機能：リマインダーコマンド
 @bot.command()
 async def remind(ctx, minutes: int, *, message: str):
     await ctx.send(f"⏰ 了解しました！{minutes}分後にリマインドします。")
     await asyncio.sleep(minutes * 60)
     await ctx.send(f"{ctx.author.mention} ⏰ お時間です！\n【リマインド内容】: {message}")
 
-# 🌟 新機能：ロール（人格）切り替えコマンド
 @bot.command()
 async def role(ctx, *, persona: str):
     if persona == "リセット":
@@ -108,6 +103,10 @@ async def mode(ctx, level: str):
 @bot.event
 async def on_message(message):
     if message.author.bot: return
+
+    # 🌟 スマホ・タブレット特化：全角の「！」や「全角スペース」を自動で半角に直す魔法
+    message.content = message.content.replace('！', '!').replace('　', ' ')
+
     if message.content.startswith('!'):
         await bot.process_commands(message)
         return
@@ -118,13 +117,12 @@ async def on_message(message):
         current_role = channel_roles.get(message.channel.id, "優秀なAI秘書")
         history_str = get_history_text(message.channel.id)
 
-        # 🌟 新機能：URLの抽出と自動読み込み
         url_pattern = re.compile(r'https?://\S+')
         urls = url_pattern.findall(user_text)
         url_content = ""
         if urls:
             await message.channel.send("🌐 リンク先のウェブサイトを直接読み込んでいます...")
-            for url in urls[:2]: # 処理制限のため最大2つまで
+            for url in urls[:2]:
                 try:
                     res = requests.get(url, timeout=5)
                     soup = BeautifulSoup(res.text, 'html.parser')
@@ -164,13 +162,13 @@ async def on_message(message):
                 bot.loop.create_task(summarize_memory(message.channel.id))
                 return
 
-            # 3. 音声（聴覚）解析モード
+            # 3. 音声解析モード
             if message.attachments and any(message.attachments[0].filename.lower().endswith(ext) for ext in ['.mp3', '.wav', '.m4a', '.ogg', '.oga']):
                 await message.channel.send("👂 音声データを聴き取っています...")
                 audio_data = requests.get(message.attachments[0].url).content
                 mime_type = message.attachments[0].content_type if message.attachments[0].content_type else 'audio/mp3'
                 audio_part = types.Part.from_bytes(data=audio_data, mime_type=mime_type)
-                instructions = f"あなたは{current_role}です。添付された音声を聴き取り、内容を正確に文字起こしした上で答えてください。\n{history_str}\n{url_content}\n指示: {user_text if user_text else '要約して'}"
+                instructions = f"あなたは{current_role}です。添付された音声を聴き取り、正確に文字起こしした上で答えてください。\n{history_str}\n{url_content}\n指示: {user_text if user_text else '要約して'}"
                 response = client.models.generate_content(model=current_model, contents=[audio_part, instructions])
                 await send_response(message.channel, response.text)
                 if user_text: add_history(message.channel.id, "user", user_text)
@@ -216,8 +214,6 @@ async def on_message(message):
                 await send_response(message.channel, response.text)
                 add_history(message.channel.id, "user", user_text)
                 add_history(message.channel.id, "model", response.text)
-                
-                # 回答送信後に、裏側で記憶整理をスタートさせる
                 bot.loop.create_task(summarize_memory(message.channel.id))
 
         except Exception as e:
