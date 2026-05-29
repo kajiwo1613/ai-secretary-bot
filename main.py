@@ -54,7 +54,8 @@ async def summarize_memory(channel_id):
             prompt = f"あなたは裏方の記憶整理係です。これまでの【長期記憶】と【直近の会話】を統合し、ユーザーの興味・前提知識・重要な話題を最新の【要約記憶】として箇条書きで更新してください。\n\n【長期記憶】\n{current_long}\n\n【直近の会話】\n{hist_text}"
             
             await asyncio.sleep(3)
-            res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            # 💡 安定版の大容量モデル（1.5-flash）に変更
+            res = client.models.generate_content(model='gemini-1.5-flash', contents=prompt)
             if res.text:
                 long_term_memories[channel_id] = res.text
                 channel_histories[channel_id] = channel_histories[channel_id][-4:]
@@ -74,7 +75,7 @@ async def send_response(channel, text):
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} 起動成功 - Wikipedia対応＆安定化版")
+    print(f"{bot.user} 起動成功 - 安定化（1.5）モデル版")
 
 @bot.command()
 async def remind(ctx, minutes: int, *, message: str):
@@ -94,11 +95,13 @@ async def role(ctx, *, persona: str):
 @bot.command()
 async def mode(ctx, level: str):
     if level.lower() == "pro":
-        channel_modes[ctx.channel.id] = 'gemini-2.5-pro'
-        await ctx.send("🧠 頭脳を【Gemini 2.5 Pro（高精度モード）】に設定しました。")
+        # 💡 安定版（1.5-pro）に変更
+        channel_modes[ctx.channel.id] = 'gemini-1.5-pro'
+        await ctx.send("🧠 頭脳を【Gemini 1.5 Pro（高精度モード）】に設定しました。")
     elif level.lower() == "flash":
-        channel_modes[ctx.channel.id] = 'gemini-2.5-flash'
-        await ctx.send("⚡ 頭脳を【Gemini 2.5 Flash（高速モード）】に設定しました。")
+        # 💡 安定版（1.5-flash）に変更
+        channel_modes[ctx.channel.id] = 'gemini-1.5-flash'
+        await ctx.send("⚡ 頭脳を【Gemini 1.5 Flash（高速モード）】に設定しました。")
 
 @bot.event
 async def on_message(message):
@@ -112,7 +115,8 @@ async def on_message(message):
 
     if bot.user.mentioned_in(message):
         user_text = message.content.replace(f'<@{bot.user.id}>', '').strip()
-        current_model = channel_modes.get(message.channel.id, 'gemini-2.5-flash')
+        # 💡 デフォルトも 1.5-flash に変更
+        current_model = channel_modes.get(message.channel.id, 'gemini-1.5-flash')
         current_role = channel_roles.get(message.channel.id, "優秀なAI秘書")
         history_str = get_history_text(message.channel.id)
 
@@ -123,7 +127,6 @@ async def on_message(message):
             await message.channel.send("🌐 リンク先のウェブサイトを直接読み込んでいます...")
             for url in urls[:2]:
                 try:
-                    # 💡 修正箇所：Wikipedia等に「普通のブラウザ（Chrome）からのアクセスですよ」と身分証を提示する
                     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
                     res = requests.get(url, headers=headers, timeout=5)
                     soup = BeautifulSoup(res.text, 'html.parser')
@@ -179,8 +182,10 @@ async def on_message(message):
                 return
 
             await message.channel.send("🤔 思考中...")
+            
+            # 💡 検索判定も 1.5-flash に変更
             intent_check = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-1.5-flash',
                 contents=f"以下の文章が事実確認のウェブ検索が必要な質問か判定し、必要ならYES、不要ならNOとだけ答えてください。\n文章：{user_text}"
             )
             
