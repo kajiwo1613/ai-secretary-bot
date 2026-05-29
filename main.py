@@ -1,12 +1,14 @@
 import discord
 from discord.ext import commands
-from openai import OpenAI
+import google.generativeai as genai
 import os
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-client_ai = OpenAI(api_key=OPENAI_API_KEY)
+# Geminiの設定
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -19,23 +21,12 @@ async def on_ready():
 
 @bot.command()
 async def ask(ctx, *, question):
-
-    response = client_ai.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "あなたは優秀なAI秘書です。"
-            },
-            {
-                "role": "user",
-                "content": question
-            }
-        ]
-    )
-
-    answer = response.choices[0].message.content
-
-    await ctx.send(answer)
+    try:
+        response = model.generate_content(
+            f"あなたは優秀なAI秘書です。以下の質問に答えてください。\n\n質問：{question}"
+        )
+        await ctx.send(response.text)
+    except Exception as e:
+        await ctx.send("すみません、エラーが発生しました。")
 
 bot.run(DISCORD_TOKEN)
