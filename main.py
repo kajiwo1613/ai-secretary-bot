@@ -10,9 +10,10 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 genai.configure(api_key=GEMINI_API_KEY)
-# ↓ ここを確実に認識される「latest（最新版）」の名前に変更しました
-model_flash = genai.GenerativeModel('gemini-1.5-flash-latest')
-model_pro = genai.GenerativeModel('gemini-1.5-pro-latest')
+
+# 誰でも確実に使える安定版（1.0世代）の名称に変更
+model_flash = genai.GenerativeModel('gemini-pro')
+model_pro = genai.GenerativeModel('gemini-pro')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -76,7 +77,7 @@ async def search(ctx, *, question):
         【ユーザーの質問】: {question}
         """
         
-        await ctx.send("🧠 サイトの熟読が完了しました。現在、Pro版AIが情報を論理的に分析・統合しています...")
+        await ctx.send("🧠 サイトの熟読が完了しました。現在、情報を論理的に分析・統合しています...")
         
         answer = model_pro.generate_content(prompt)
         await ctx.send(answer.text)
@@ -85,4 +86,3 @@ async def search(ctx, *, question):
         await ctx.send(f"検索エラー原因：{e}")
 
 bot.run(DISCORD_TOKEN)
-
