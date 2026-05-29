@@ -10,9 +10,8 @@ import pypdf
 import asyncio
 import re
 from bs4 import BeautifulSoup
-import database  # 💡 自作のデータベース管理モジュールを読み込み
+import database
 
-# 起動時にデータベースの初期設定（テーブル作成）を行う
 database.init_db()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -22,7 +21,9 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+
+# 💡 全角の「！」にも公式機能として完全対応
+bot = commands.Bot(command_prefix=["!", "！"], intents=intents)
 
 channel_modes = {}
 channel_histories = {}
@@ -31,10 +32,8 @@ long_term_memories = {}
 def get_history_text(channel_id):
     long_term = long_term_memories.get(channel_id, "")
     history = channel_histories.get(channel_id, [])
-    
     text = ""
-    if long_term:
-        text += f"【重要：これまでの長期記憶・要約】\n{long_term}\n\n"
+    if long_term: text += f"【重要：これまでの長期記憶・要約】\n{long_term}\n\n"
     if history:
         text += "【直近の会話履歴】\n"
         for h in history:
@@ -44,8 +43,7 @@ def get_history_text(channel_id):
     return text
 
 def add_history(channel_id, role, text):
-    if channel_id not in channel_histories:
-        channel_histories[channel_id] = []
+    if channel_id not in channel_histories: channel_histories[channel_id] = []
     channel_histories[channel_id].append({"role": role, "text": text})
 
 async def summarize_memory(channel_id):
@@ -55,7 +53,6 @@ async def summarize_memory(channel_id):
             current_long = long_term_memories.get(channel_id, "")
             hist_text = "\n".join([f"{h['role']}: {h['text']}" for h in history])
             prompt = f"あなたは裏方の記憶整理係です。これまでの【長期記憶】と【直近の会話】を統合し、ユーザーの興味・前提知識・重要な話題を最新の【要約記憶】として箇条書きで更新してください。\n\n【長期記憶】\n{current_long}\n\n【直近の会話】\n{hist_text}"
-            
             await asyncio.sleep(3)
             res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             if res.text:
@@ -68,18 +65,21 @@ async def send_response(channel, text):
     if not text: return
     if len(text) > 1500:
         with io.BytesIO(text.encode('utf-8-sig')) as f:
-            await channel.send(
-                content="📄 回答が長文になったため、テキストファイルに出力しました：",
-                file=discord.File(f, filename="ai_secretary_report.txt")
-            )
+            await channel.send(content="📄 回答が長文になったため、テキストファイルに出力しました：", file=discord.File(f, filename="ai_secretary_report.txt"))
     else:
         await channel.send(text)
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} 起動成功 - データベース（TODO＆永続化Role）搭載版")
+    print(f"{bot.user} 起動成功 - 安定エラー検知版")
 
-# 📝 新機能：TODO管理コマンド
+# 💡 新機能：もう無視させない！裏側のエラーをDiscordに報告する機能
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return  # 存在しないコマンドの時は無視する
+    await ctx.send(f"⚠️ コマンド処理中にエラーが発生しました:\n`{str(error)}`")
+
 @bot.command()
 async def todo(ctx, action: str = None, *, arg: str = None):
     if action == "add" and arg:
@@ -91,8 +91,7 @@ async def todo(ctx, action: str = None, *, arg: str = None):
             await ctx.send("📝 現在登録されているTODOはありません。")
             return
         msg = "【あなたのTODO一覧】\n"
-        for t in todos:
-            msg += f"ID:{t[0]} - {t[1]}\n"
+        for t in todos: msg += f"ID:{t[0]} - {t[1]}\n"
         await ctx.send(msg)
     elif action == "done" and arg and arg.isdigit():
         if database.delete_todo(int(arg), ctx.author.id):
@@ -102,24 +101,26 @@ async def todo(ctx, action: str = None, *, arg: str = None):
     else:
         await ctx.send("使い方:\n`!todo add [タスク]`（追加）\n`!todo list`（一覧表示）\n`!todo done [ID番号]`（完了・削除）")
 
-# ⏰ リマインダーコマンド
 @bot.command()
 async def remind(ctx, minutes: int, *, message: str):
     await ctx.send(f"⏰ 了解しました！{minutes}分後にリマインドします。")
     await asyncio.sleep(minutes * 60)
     await ctx.send(f"{ctx.author.mention} ⏰ お時間です！\n【リマインド内容】: {message}")
 
-# 🎭 人格切り替えコマンド（DB保存による永続化版）
 @bot.command()
-async def role(ctx, *, persona: str):
-    if persona == "リセット":
+async def role(ctx, *, persona: str = None):
+    if not persona:
+        await ctx.send("⚠️ 人格が入力されていません。例: `!role 厳しい教授`")
+        return
+    
+    # 💡 英語の"reset"でも日本語の"リセット"でも確実に初期化する
+    if persona.lower() in ["リセット", "reset"]:
         database.delete_role(ctx.channel.id)
         await ctx.send("🔄 AIの人格を通常の「優秀なAI秘書」に戻しました。")
     else:
         database.set_role(ctx.channel.id, persona)
         await ctx.send(f"🎭 AIの人格を【{persona}】に設定し、データベースに記憶しました！サーバーが再起動しても忘れません。")
 
-# 🧠 頭脳切り替えコマンド
 @bot.command()
 async def mode(ctx, level: str):
     if level.lower() == "pro":
@@ -133,10 +134,8 @@ async def mode(ctx, level: str):
 async def on_message(message):
     if message.author.bot: return
 
-    # スマホ・タブレット入力補正
-    message.content = message.content.replace('！', '!').replace('　', ' ')
-
-    if message.content.startswith('!'):
+    # ハック的な文字列置換を削除し、純粋なシステム処理に任せます
+    if message.content.startswith('!') or message.content.startswith('！'):
         await bot.process_commands(message)
         return
 
@@ -144,21 +143,17 @@ async def on_message(message):
         user_text = message.content.replace(f'<@{bot.user.id}>', '').strip()
         current_model = channel_modes.get(message.channel.id, 'gemini-2.5-flash')
         
-        # 💡 修正箇所：データベースから保存された人格を読み込む
         db_role = database.get_role(message.channel.id)
         current_role = db_role if db_role else "優秀なAI秘書"
         
         history_str = get_history_text(message.channel.id)
 
-        # 💡 新機能：データベースからTODOリストを読み込んでAIの文脈に常に持たせる
         todos = database.get_todos(message.author.id)
         if todos:
             todo_text = "【ユーザーの現在の未完了TODO（これを踏まえてサポートしてください）】\n"
-            for t in todos:
-                todo_text += f"・{t[1]}\n"
+            for t in todos: todo_text += f"・{t[1]}\n"
             history_str = todo_text + "\n" + history_str
 
-        # URLの抽出と自動読み込み
         url_pattern = re.compile(r'https?://\S+')
         urls = url_pattern.findall(user_text)
         url_content = ""
@@ -175,7 +170,6 @@ async def on_message(message):
                     url_content += f"【URL: {url} は読み込めませんでした】\n"
 
         try:
-            # 1. 画像解析モード
             if message.attachments and any(message.attachments[0].filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.webp']):
                 await message.channel.send("👀 画像を確認しています...")
                 img_data = requests.get(message.attachments[0].url).content
@@ -188,7 +182,6 @@ async def on_message(message):
                 bot.loop.create_task(summarize_memory(message.channel.id))
                 return
 
-            # 2. PDF書類分析モード
             if message.attachments and message.attachments[0].filename.lower().endswith('.pdf'):
                 await message.channel.send("📄 PDFファイルを高度解析しています...")
                 pdf_data = requests.get(message.attachments[0].url).content
@@ -205,7 +198,6 @@ async def on_message(message):
                 bot.loop.create_task(summarize_memory(message.channel.id))
                 return
 
-            # 3. 音声（聴覚）解析モード
             if message.attachments and any(message.attachments[0].filename.lower().endswith(ext) for ext in ['.mp3', '.wav', '.m4a', '.ogg', '.oga']):
                 await message.channel.send("👂 音声データを聴き取っています...")
                 audio_data = requests.get(message.attachments[0].url).content
@@ -219,7 +211,6 @@ async def on_message(message):
                 bot.loop.create_task(summarize_memory(message.channel.id))
                 return
 
-            # 4. 文字・URLのみの場合
             if not user_text and not url_content:
                 await message.channel.send("はい、何でしょうか？")
                 return
@@ -243,7 +234,7 @@ async def on_message(message):
                     for index, result in enumerate(search_data["results"]):
                         context += f"--- 情報源 {index+1}: {result.get('title')} ---\nURL: {result.get('url')}\n内容: {result.get('content')}\n\n"
 
-                prompt = f"あなたは{current_role}します。事実情報のみに基づき正確に答えてください。\n{history_str}\n{url_content}\n{context}\n質問: {user_text}"
+                prompt = f"あなたは{current_role}です。事実情報のみに基づき正確に答えてください。\n{history_str}\n{url_content}\n{context}\n質問: {user_text}"
                 await message.channel.send("🧠 情報の分析・統合中...")
                 answer = client.models.generate_content(model=current_model, contents=prompt)
                 await send_response(message.channel, answer.text)
