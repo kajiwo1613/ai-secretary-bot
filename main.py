@@ -6,6 +6,7 @@ import requests
 from PIL import Image
 import io
 import pypdf
+import asyncio
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -18,14 +19,10 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 部屋ごとのAIモードを記憶する辞書
 channel_modes = {}
-
-# 🌟 新機能①：部屋ごとの会話履歴を記憶するメモリシステム
 channel_histories = {}
 
 def get_history_text(channel_id):
-    """過去の会話文脈をプロンプト用に綺麗に整理して取り出す"""
     history = channel_histories.get(channel_id, [])
     if not history:
         return ""
@@ -37,7 +34,6 @@ def get_history_text(channel_id):
     return text
 
 def add_history(channel_id, role, text):
-    """会話履歴をメモリに追加（直近5往復＝10件まで自動整理して蓄積）"""
     if channel_id not in channel_histories:
         channel_histories[channel_id] = []
     channel_histories[channel_id].append({"role": role, "text": text})
@@ -45,23 +41,20 @@ def add_history(channel_id, role, text):
         channel_histories[channel_id].pop(0)
 
 async def send_response(channel, text):
-    """🌟 新機能③：文字数を自動判断し、長文なら.txtファイルでスマートに提出"""
     if not text:
         return
-    # 1500文字を超える場合はファイル化して送信
     if len(text) > 1500:
         with io.BytesIO(text.encode('utf-8')) as f:
             await channel.send(
-                content="📄 回答が長文（1,500文字以上）になったため、確認しやすいようテキストファイルに出力しました。ダウンロードしてご活用ください：",
+                content="📄 回答が長文（1,500文字以上）になったため、確認しやすいようテキストファイルに出力しました：",
                 file=discord.File(f, filename="ai_secretary_report.txt")
             )
     else:
-        # 通常送信
         await channel.send(text)
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} 起動成功 - 究極完全体ハイブリッド版")
+    print(f"{bot.user} 起動成功 - 深呼吸（クールダウン）機能搭載版")
 
 @bot.command()
 async def mode(ctx, level: str):
@@ -72,12 +65,10 @@ async def mode(ctx, level: str):
         channel_modes[ctx.channel.id] = 'gemini-2.5-flash'
         await ctx.send("⚡ このチャンネルの頭脳を【Gemini 2.5 Flash（高速モード）】に設定しました。")
 
-# 🌟 メインシステム：すべての機能を全自動で処理
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
-
     if message.content.startswith('!'):
         await bot.process_commands(message)
         return
@@ -88,121 +79,73 @@ async def on_message(message):
         history_str = get_history_text(message.channel.id)
 
         try:
-            # 📸 1. 画像解析モード
+            # 1. 画像解析モード
             if message.attachments and any(message.attachments[0].filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.webp']):
                 await message.channel.send("👀 画像を確認しています...")
                 attachment = message.attachments[0]
                 img_data = requests.get(attachment.url).content
                 img = Image.open(io.BytesIO(img_data))
-                
-                instructions = f"""
-                あなたは優秀なAI秘書です。以下の【これまでの会話履歴】を踏まえ、添付された画像を見てユーザーの指示に具体的かつ現実的に答えてください。
-                確証のない憶測は完全に排除してください。
-                
-                {history_str}
-                ユーザーの指示: {user_text if user_text else 'この画像について詳しく説明してください。'}
-                """
-                
+                instructions = f"あなたは優秀なAI秘書です。以下の【これまでの会話履歴】を踏まえ、添付画像を見てユーザーの指示に具体的かつ現実的に答えてください。\n{history_str}\n指示: {user_text if user_text else '詳細に説明して'}"
                 response = client.models.generate_content(model=current_model, contents=[img, instructions])
                 await send_response(message.channel, response.text)
-                if user_text:
-                    add_history(message.channel.id, "user", user_text)
+                if user_text: add_history(message.channel.id, "user", user_text)
                 add_history(message.channel.id, "model", response.text)
                 return
 
-            # 📄 2. 新機能②：PDF書類分析モード
+            # 2. PDF書類分析モード
             if message.attachments and message.attachments[0].filename.lower().endswith('.pdf'):
-                await message.channel.send("📄 確証のある情報を得るため、PDFファイルを高度解析しています。少々お待ちください...")
+                await message.channel.send("📄 PDFファイルを高度解析しています...")
                 attachment = message.attachments[0]
                 pdf_data = requests.get(attachment.url).content
-                
-                # PDFからテキストを抽出
                 pdf_text = ""
                 with io.BytesIO(pdf_data) as pdf_file:
                     reader = pypdf.PdfReader(pdf_file)
                     for page in reader.pages:
-                        text = page.extract_text()
-                        if text:
-                            pdf_text += text + "\n"
-                
-                prompt = f"""
-                あなたは優秀なAI秘書です。添付された【PDFの内容】および【これまでの会話履歴】という確証のある事実情報のみに基づいて、ユーザーの指示に論理的、具体的、かつ現実的に答えてください。
-                データにない推測や不確かな情報は絶対に排除してください。
-                
-                {history_str}
-                【添付されたPDFの内容】
-                {pdf_text[:30000]}
-                
-                ユーザーの指示: {user_text if user_text else 'このPDF書類の重要ポイントを分かりやすく要約してください。'}
-                """
-                
+                        if page.extract_text(): pdf_text += page.extract_text() + "\n"
+                prompt = f"あなたはAI秘書です。事実情報のみに基づき具体的かつ現実的に答えてください。\n{history_str}\n【PDF内容】\n{pdf_text[:30000]}\n指示: {user_text if user_text else '要約して'}"
                 response = client.models.generate_content(model=current_model, contents=prompt)
                 await send_response(message.channel, response.text)
-                if user_text:
-                    add_history(message.channel.id, "user", user_text)
+                if user_text: add_history(message.channel.id, "user", user_text)
                 add_history(message.channel.id, "model", response.text)
                 return
 
-            # 🌐 3. 文字のみの場合（自動検索判定 ＆ 通常対話）
             if not user_text:
                 await message.channel.send("はい、何でしょうか？")
                 return
 
             await message.channel.send("🤔 思考中...")
             
-            # 最新情報が必要かAIに自己判断させる
+            # 検索判定
             intent_check = client.models.generate_content(
                 model='gemini-2.5-flash',
-                contents=f"以下の文章が、最新のニュース、リアルタイムの天気、または事実確認のためのウェブ検索が必要な質問か判定してください。必要なら「YES」、不要なら「NO」とだけ答えてください。\n\n文章：{user_text}"
+                contents=f"以下の文章が事実確認のウェブ検索が必要な質問か判定し、必要ならYES、不要ならNOとだけ答えてください。\n文章：{user_text}"
             )
             
-            # 【WEB検索実行】
+            # 💡【重要】ここで3秒間待機し、Googleからの制限（429エラー）を回避する！
+            await asyncio.sleep(3)
+            
+            # 3. WEB検索実行
             if "YES" in intent_check.text.upper():
-                await message.channel.send("🔍 最新情報・確証データが必要だと判断しました。専用リサーチAIで事実確認を行っています...")
+                await message.channel.send("🔍 外部リサーチAIで事実確認を行っています...")
                 url = "https://api.tavily.com/search"
-                payload = {
-                    "api_key": TAVILY_API_KEY,
-                    "query": user_text,
-                    "search_depth": "advanced",
-                    "max_results": 5,
-                    "include_raw_content": False
-                }
-                response = requests.post(url, json=payload)
-                search_data = response.json()
+                payload = {"api_key": TAVILY_API_KEY, "query": user_text, "search_depth": "advanced", "max_results": 5, "include_raw_content": False}
+                search_data = requests.post(url, json=payload).json()
                 
-                context = "【読み込んだウェブサイトの実際の情報（事実データ）】\n\n"
+                context = "【読み込んだウェブサイトの情報】\n\n"
                 if "results" in search_data:
                     for index, result in enumerate(search_data["results"]):
-                        title = result.get("title", "無題")
-                        link = result.get("url", "URLなし")
-                        content = result.get("content", "")
-                        context += f"--- 情報源 {index+1}: {title} ---\nURL: {link}\n内容: {content}\n\n"
+                        context += f"--- 情報源 {index+1}: {result.get('title')} ---\nURL: {result.get('url')}\n内容: {result.get('content')}\n\n"
 
-                prompt = f"""
-                あなたは優秀なAIリサーチャーです。以下の【読み込んだウェブサイトの実際の情報】および【これまでの会話履歴】という事実情報のみに基づいて、ユーザーの質問に正確に答えてください。
-                確証のない憶測の情報は不必要です。具体的、現実的に情報を提示してください。
-                どの情報源（タイトルやURL）からその事実が得られたのかも、合わせて記載してください。
-                
-                {history_str}
-                {context}
-                【ユーザーの質問】: {user_text}
-                """
-                
-                await message.channel.send("🧠 リサーチ完了。得られた事実を論理的に分析・統合しています...")
+                prompt = f"あなたはAIリサーチャーです。事実情報のみに基づき正確に答えてください。情報源も記載してください。\n{history_str}\n{context}\n質問: {user_text}"
+                await message.channel.send("🧠 情報の分析・統合中...")
                 answer = client.models.generate_content(model=current_model, contents=prompt)
                 await send_response(message.channel, answer.text)
                 add_history(message.channel.id, "user", user_text)
                 add_history(message.channel.id, "model", answer.text)
                 
-            # 【通常の会話（検索不要）】
+            # 4. 通常の会話
             else:
-                prompt = f"""
-                あなたは優秀なAI秘書です。【これまでの会話履歴】を踏まえて、ユーザーの質問に具体的、現実的に答えてください。
-                確証のない不確かな情報は排除してください。
-                
-                {history_str}
-                質問：{user_text}
-                """
+                prompt = f"あなたはAI秘書です。【これまでの会話履歴】を踏まえて具体的かつ現実的に答えてください。\n{history_str}\n質問：{user_text}"
                 response = client.models.generate_content(model=current_model, contents=prompt)
                 await send_response(message.channel, response.text)
                 add_history(message.channel.id, "user", user_text)
