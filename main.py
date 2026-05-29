@@ -1,7 +1,6 @@
-
 import discord
 from discord.ext import commands
-import google.generativeai as genai
+from google import genai
 import os
 import requests
 
@@ -9,9 +8,8 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
-genai.configure(api_key=GEMINI_API_KEY)
-model_flash = genai.GenerativeModel('gemini-pro')
-model_pro = genai.GenerativeModel('gemini-pro')
+# あなたが気づいた最新のGemini部品の書き方です！
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -25,7 +23,10 @@ async def on_ready():
 @bot.command()
 async def ask(ctx, *, question):
     try:
-        response = model_flash.generate_content(f"あなたは優秀なAI秘書です。\n質問：{question}")
+        response = client.models.generate_content(
+            model='gemini-pro',
+            contents=f"あなたは優秀なAI秘書です。\n質問：{question}"
+        )
         await ctx.send(response.text)
     except Exception as e:
         await ctx.send(f"エラー原因：{e}")
@@ -33,7 +34,10 @@ async def ask(ctx, *, question):
 @bot.command()
 async def pro(ctx, *, question):
     try:
-        response = model_pro.generate_content(f"あなたは優秀なAI秘書です。論理的に答えてください。\n質問：{question}")
+        response = client.models.generate_content(
+            model='gemini-pro',
+            contents=f"あなたは優秀なAI秘書です。論理的に答えてください。\n質問：{question}"
+        )
         await ctx.send(response.text)
     except Exception as e:
         await ctx.send(f"エラー原因：{e}")
@@ -43,7 +47,6 @@ async def search(ctx, *, question):
     await ctx.send("🔍 確証のある情報を得るため、専用の外部リサーチAIを使って事実確認を行っています。少々お待ちください...")
     
     try:
-        # Tavily APIを使って、AIリサーチ用の検索とサイト読み込みを実行
         url = "https://api.tavily.com/search"
         payload = {
             "api_key": TAVILY_API_KEY,
@@ -79,10 +82,14 @@ async def search(ctx, *, question):
         
         await ctx.send("🧠 リサーチが完了しました。現在、得られた事実を論理的に分析・統合しています...")
         
-        answer = model_pro.generate_content(prompt)
+        answer = client.models.generate_content(
+            model='gemini-pro',
+            contents=prompt
+        )
         await ctx.send(answer.text)
 
     except Exception as e:
         await ctx.send(f"検索エラー原因：{e}")
 
 bot.run(DISCORD_TOKEN)
+
