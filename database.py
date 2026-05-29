@@ -6,11 +6,13 @@ DB_FILE = "bot_data.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    # 既存のテーブル
     c.execute('''CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, task TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS roles (channel_id INTEGER PRIMARY KEY, role_text TEXT)''')
-    # 🌟 新機能：使用回数・ログ管理用のテーブル
     c.execute('''CREATE TABLE IF NOT EXISTS usage_logs (user_id INTEGER, date TEXT, count INTEGER, PRIMARY KEY(user_id, date))''')
+    
+    # 🌟 RAG機能：法律知識や論証集を保管するテーブルを追加
+    c.execute('''CREATE TABLE IF NOT EXISTS knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT UNIQUE, content TEXT)''')
+    
     conn.commit()
     conn.close()
 
@@ -62,25 +64,45 @@ def delete_role(channel_id):
     conn.commit()
     conn.close()
 
-# 🌟 新機能：使用回数チェック＆カウント機能
+# --- 使用回数制限機能 ---
 def check_and_increment_usage(user_id, limit=20):
     today = datetime.now().strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT count FROM usage_logs WHERE user_id = ? AND date = ?", (user_id, today))
     row = c.fetchone()
-    
     if row:
         count = row[0]
         if count >= limit:
             conn.close()
-            return False, count # 制限到達
+            return False, count
         c.execute("UPDATE usage_logs SET count = count + 1 WHERE user_id = ? AND date = ?", (user_id, today))
         new_count = count + 1
     else:
         c.execute("INSERT INTO usage_logs (user_id, date, count) VALUES (?, ?, 1)", (user_id, today))
         new_count = 1
-        
     conn.commit()
     conn.close()
     return True, new_count
+
+# 🌟 新機能：RAG用の知識登録と、会話文からの自動マッチング検索
+def add_knowledge(keyword, content):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO knowledge (keyword, content) VALUES (?, ?)", (keyword, content))
+    conn.commit()
+    conn.close()
+
+def search_knowledge(text):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT keyword, content FROM knowledge")
+    rows = c.fetchall()
+    conn.close()
+    
+    matched_context = ""
+    # ユーザーの質問文の中に、登録されたキーワードが含まれているか走査
+    for keyword, content in rows:
+        if keyword in text:
+            matched_context += f"【登録知識: {keyword} に関する公式論証・条文】\n{content}\n\n"
+    return matched_context
