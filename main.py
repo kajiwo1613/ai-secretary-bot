@@ -44,7 +44,7 @@ async def send_response(channel, text):
     if not text:
         return
     if len(text) > 1500:
-        with io.BytesIO(text.encode('utf-8')) as f:
+        with io.BytesIO(text.encode('utf-8-sig')) as f:
             await channel.send(
                 content="📄 回答が長文（1,500文字以上）になったため、確認しやすいようテキストファイルに出力しました：",
                 file=discord.File(f, filename="ai_secretary_report.txt")
