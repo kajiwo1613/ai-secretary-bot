@@ -9,14 +9,10 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, task TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS roles (channel_id INTEGER PRIMARY KEY, role_text TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS usage_logs (user_id INTEGER, date TEXT, count INTEGER, PRIMARY KEY(user_id, date))''')
-    
-    # 🌟 RAG機能：法律知識や論証集を保管するテーブルを追加
     c.execute('''CREATE TABLE IF NOT EXISTS knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT UNIQUE, content TEXT)''')
-    
     conn.commit()
     conn.close()
 
-# --- TODO機能 ---
 def add_todo(user_id, task):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -41,7 +37,6 @@ def delete_todo(todo_id, user_id):
     conn.close()
     return deleted > 0
 
-# --- Role（人格）機能 ---
 def set_role(channel_id, role_text):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -64,7 +59,6 @@ def delete_role(channel_id):
     conn.commit()
     conn.close()
 
-# --- 使用回数制限機能 ---
 def check_and_increment_usage(user_id, limit=20):
     today = datetime.now().strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_FILE)
@@ -85,7 +79,6 @@ def check_and_increment_usage(user_id, limit=20):
     conn.close()
     return True, new_count
 
-# 🌟 新機能：RAG用の知識登録と、会話文からの自動マッチング検索
 def add_knowledge(keyword, content):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -99,9 +92,7 @@ def search_knowledge(text):
     c.execute("SELECT keyword, content FROM knowledge")
     rows = c.fetchall()
     conn.close()
-    
     matched_context = ""
-    # ユーザーの質問文の中に、登録されたキーワードが含まれているか走査
     for keyword, content in rows:
         if keyword in text:
             matched_context += f"【登録知識: {keyword} に関する公式論証・条文】\n{content}\n\n"
