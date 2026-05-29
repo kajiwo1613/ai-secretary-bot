@@ -27,6 +27,6 @@ async def ask(ctx, *, question):
         )
         await ctx.send(response.text)
     except Exception as e:
-        await ctx.send("すみません、エラーが発生しました。")
+        await ctx.send(f"エラー原因:[e]")
 
 bot.run(DISCORD_TOKEN)
