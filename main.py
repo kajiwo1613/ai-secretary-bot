@@ -1,17 +1,15 @@
+
 import discord
 from discord.ext import commands
 import google.generativeai as genai
 import os
-from duckduckgo_search import DDGS
 import requests
-from bs4 import BeautifulSoup
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 genai.configure(api_key=GEMINI_API_KEY)
-
-# 誰でも確実に使える安定版（1.0世代）の名称に変更
 model_flash = genai.GenerativeModel('gemini-pro')
 model_pro = genai.GenerativeModel('gemini-pro')
 
@@ -42,30 +40,32 @@ async def pro(ctx, *, question):
 
 @bot.command()
 async def search(ctx, *, question):
-    await ctx.send("🔍 確証のある情報を得るため、複数のウェブサイトの中身を直接読み込んでいます。完了まで少し時間がかかります...")
+    await ctx.send("🔍 確証のある情報を得るため、専用の外部リサーチAIを使って事実確認を行っています。少々お待ちください...")
     
     try:
-        search_results = DDGS().text(question, region='wt-wt', safesearch='off', max_results=5)
+        # Tavily APIを使って、AIリサーチ用の検索とサイト読み込みを実行
+        url = "https://api.tavily.com/search"
+        payload = {
+            "api_key": TAVILY_API_KEY,
+            "query": question,
+            "search_depth": "advanced",
+            "max_results": 5,
+            "include_raw_content": False
+        }
         
-        if not search_results:
+        response = requests.post(url, json=payload)
+        search_data = response.json()
+        
+        if "results" not in search_data or len(search_data["results"]) == 0:
             await ctx.send("関連する検索結果が見つかりませんでした。")
             return
-
-        context = "【読み込んだウェブサイトの実際の情報】\n\n"
-        
-        for index, result in enumerate(search_results):
-            url = result.get('href')
-            title = result.get('title')
-            context += f"--- 情報源 {index+1}: {title} ---\nURL: {url}\n"
             
-            try:
-                response = requests.get(url, timeout=3)
-                response.encoding = response.apparent_encoding
-                soup = BeautifulSoup(response.text, 'html.parser')
-                page_text = soup.get_text(separator=' ', strip=True)
-                context += f"内容: {page_text[:2000]}\n\n"
-            except Exception:
-                context += f"内容: {result.get('body')}\n\n"
+        context = "【読み込んだウェブサイトの実際の情報】\n\n"
+        for index, result in enumerate(search_data["results"]):
+            title = result.get("title", "無題")
+            link = result.get("url", "URLなし")
+            content = result.get("content", "")
+            context += f"--- 情報源 {index+1}: {title} ---\nURL: {link}\n内容: {content}\n\n"
 
         prompt = f"""
         あなたは優秀なAIリサーチャーです。以下の「読み込んだウェブサイトの実際の情報」という事実情報のみに基づいて、ユーザーの質問に正確に答えてください。
@@ -77,7 +77,7 @@ async def search(ctx, *, question):
         【ユーザーの質問】: {question}
         """
         
-        await ctx.send("🧠 サイトの熟読が完了しました。現在、情報を論理的に分析・統合しています...")
+        await ctx.send("🧠 リサーチが完了しました。現在、得られた事実を論理的に分析・統合しています...")
         
         answer = model_pro.generate_content(prompt)
         await ctx.send(answer.text)
