@@ -57,7 +57,7 @@ async def send_response(channel, text):
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    print(f"{bot.user} 起動成功 - 軽量高精度RAGエンジン搭載版")
+    print(f"{bot.user} 起動成功 - タブレット対応 RAG＆SaaS基盤版")
 
 # ==========================================
 # 🌟 Slash Commands (UI/UX)
@@ -93,34 +93,13 @@ async def slash_role(interaction: discord.Interaction, persona: str):
         database.set_role(interaction.channel_id, persona)
         await interaction.response.send_message(embed=discord.Embed(title="🎭 人格設定", description=f"AIの人格を **【{persona}】** に設定しました。", color=0xe67e22))
 
-# 🌟 新機能：RAG用知識登録コマンド
-@bot.tree.command(name="knowledge_add", description="⚖️ AI専用の知識（論証集や六法のテキストなど）をデータベースに登録します")
+# 🌟 RAG用知識登録コマンド (コピペ分断エラー対策済みの安全な書き方)
+@bot.tree.command(name="knowledge_add", description="⚖️ AI専用の知識（論証集や六法など）を登録します")
 async def slash_knowledge_add(interaction: discord.Interaction, keyword: str, content: str):
     database.add_knowledge(keyword, content)
-    embed = discord.Embed(
-        title="⚖️ 知識データベース登録完了",
-        description=f"キーワード **【{keyword}】** で以下の知識を記憶しました。今後、質問にこの単語が含まれるとAIが自動的にこの内容を参照して回答します。\n\n
+    
+    # 長い文章を短いパーツに分けて結合し、改行バグを防ぎます
+    desc_part1 = f"キーワード **【{keyword}】** で知識を記憶しました。\n"
+    desc_part2 = "今後、質問にこの単語が含まれるとAIが自動参照します。\n\n"
+    desc_part3 = f"
 http://googleusercontent.com/immersive_entry_chip/0
-
----
-
-### 🧪 新しい「自分専用法律AI」のテスト手順
-
-Renderの再起動が終わり、前回の「最後の儀式（スラッシュコマンドの再招待）」が済んでいれば、入力欄に `/knowledge_add` という超強力なコマンドが出現します。
-
-以下の手順でテストを回してみてください。別次元の知性が宿ります。
-
-**ステップ1：あなただけの「公式論証」をAIに記憶させる**
-Discordで以下のようにスラッシュコマンドを打ち込み、送信します。
-
-* **keyword:** `共謀共同正犯`
-* **content:** `共謀共同正犯が成立するためには、①２人以上の者が、特定の犯罪を行うことについて共同意思の下に一体となって互いに利用し合って犯罪を実行する合意（共謀）をし、②共謀者のいずれかがその共謀に基づいて犯罪を実行したこと（実行行為）が必要である。その本質は、自己の不法として他人の行為を道具のごとく利用する点にある。`
-
-**ステップ2：わざとアバウトに質問して、RAGを起動させる**
-ボットに向けて、普通にメンションで話しかけます。
-
-> `@AI秘書 共謀共同正犯って、結局どういう時に成立するんだっけ？簡単に教えて。`
-
-システムが自動的に「共謀共同正犯」という単語を検知し、`📚 登録された専門知識データベース（RAG）を参照しています...` という専用のEmbedを出しながら、**あなたが今登録したばかりの①や②の定義、そして「自己の不法として他人の行為を利用する」という全く同じフレーズを正確に用いた回答**を生成してくれたら、**完全大成功**です！
-
-これで、ネットの適当な解説ではなく、あなたが覚えたい「ガチの論証集や教科書の記述」をそのまま喋る最強の法学パートナーの基盤が整いました。ぜひ体験してみてください！
