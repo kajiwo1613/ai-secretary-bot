@@ -74,7 +74,7 @@ async def send_response(channel, text):
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} 起動成功 - タブレット入力最適化版")
+    print(f"{bot.user} 起動成功 - Wikipedia対応＆安定化版")
 
 @bot.command()
 async def remind(ctx, minutes: int, *, message: str):
@@ -104,7 +104,6 @@ async def mode(ctx, level: str):
 async def on_message(message):
     if message.author.bot: return
 
-    # 🌟 スマホ・タブレット特化：全角の「！」や「全角スペース」を自動で半角に直す魔法
     message.content = message.content.replace('！', '!').replace('　', ' ')
 
     if message.content.startswith('!'):
@@ -124,7 +123,9 @@ async def on_message(message):
             await message.channel.send("🌐 リンク先のウェブサイトを直接読み込んでいます...")
             for url in urls[:2]:
                 try:
-                    res = requests.get(url, timeout=5)
+                    # 💡 修正箇所：Wikipedia等に「普通のブラウザ（Chrome）からのアクセスですよ」と身分証を提示する
+                    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+                    res = requests.get(url, headers=headers, timeout=5)
                     soup = BeautifulSoup(res.text, 'html.parser')
                     extracted_text = soup.get_text(separator='\n', strip=True)
                     url_content += f"【URL: {url} の内容】\n{extracted_text[:3000]}\n\n"
@@ -132,7 +133,6 @@ async def on_message(message):
                     url_content += f"【URL: {url} は読み込めませんでした】\n"
 
         try:
-            # 1. 画像解析モード
             if message.attachments and any(message.attachments[0].filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.webp']):
                 await message.channel.send("👀 画像を確認しています...")
                 img_data = requests.get(message.attachments[0].url).content
@@ -145,7 +145,6 @@ async def on_message(message):
                 bot.loop.create_task(summarize_memory(message.channel.id))
                 return
 
-            # 2. PDF書類分析モード
             if message.attachments and message.attachments[0].filename.lower().endswith('.pdf'):
                 await message.channel.send("📄 PDFファイルを高度解析しています...")
                 pdf_data = requests.get(message.attachments[0].url).content
@@ -162,7 +161,6 @@ async def on_message(message):
                 bot.loop.create_task(summarize_memory(message.channel.id))
                 return
 
-            # 3. 音声解析モード
             if message.attachments and any(message.attachments[0].filename.lower().endswith(ext) for ext in ['.mp3', '.wav', '.m4a', '.ogg', '.oga']):
                 await message.channel.send("👂 音声データを聴き取っています...")
                 audio_data = requests.get(message.attachments[0].url).content
@@ -176,7 +174,6 @@ async def on_message(message):
                 bot.loop.create_task(summarize_memory(message.channel.id))
                 return
 
-            # 4. 文字・URLのみの場合
             if not user_text and not url_content:
                 await message.channel.send("はい、何でしょうか？")
                 return
