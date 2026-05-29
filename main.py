@@ -1,4 +1,3 @@
-```python
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -62,10 +61,6 @@ async def on_ready():
     await bot.tree.sync()
     print(f"{bot.user} 起動成功 - タブレット完全対応・安全RAG版")
 
-# ==========================================
-# 🌟 Slash Commands (UI/UX)
-# ==========================================
-
 @bot.tree.command(name="todo_add", description="📝 新しいTODOタスクを追加します")
 async def slash_todo_add(interaction: discord.Interaction, task: str):
     database.add_todo(interaction.user.id, task)
@@ -98,31 +93,19 @@ async def slash_role(interaction: discord.Interaction, persona: str):
         database.set_role(interaction.channel_id, persona)
         await interaction.response.send_message(embed=discord.Embed(title="🎭 人格設定", description=f"AIの人格を **【{persona}】** に設定しました。", color=0xe67e22))
 
-# 🌟 RAG用知識登録コマンド (タブレット・コピペバグ完全対策)
 @bot.tree.command(name="knowledge_add", description="⚖️ AI専用の知識（論証集や六法など）を登録します")
 async def slash_knowledge_add(interaction: discord.Interaction, keyword: str, content: str):
     database.add_knowledge(keyword, content)
-    
-    # ダブルクォートやバッククォートでのコピペエラーを完全に防ぐ安全な書き方
     title_text = "⚖️ 知識データベース登録完了"
     desc_text = "キーワード **【" + keyword + "】** で知識を記憶しました。\n今後、質問にこの単語が含まれるとAIが自動参照します。\n\n"
     desc_text += "■ 登録内容の先頭部分\n" + content[:200] + "..."
-    
-    embed = discord.Embed(
-        title=title_text,
-        description=desc_text,
-        color=0x1abc9c
-    )
+    embed = discord.Embed(title=title_text, description=desc_text, color=0x1abc9c)
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="memory", description="🧠 【管理者用】現在の長期記憶を確認します")
 async def slash_memory(interaction: discord.Interaction):
     long_term = long_term_memories.get(interaction.channel_id, "まだ長期記憶はありません。")
     await interaction.response.send_message(embed=discord.Embed(title="🧠 AIの現在の脳内メモリ", description=long_term, color=0x1abc9c))
-
-# ==========================================
-# 💬 AI会話エンジン (RAG合体)
-# ==========================================
 
 @bot.event
 async def on_message(message):
@@ -232,5 +215,3 @@ async def on_message(message):
             await message.channel.send(embed=discord.Embed(title="⚠️ エラー", description=f"`{str(e)[:500]}`", color=0xe74c3c))
 
 bot.run(DISCORD_TOKEN)
-
-```
