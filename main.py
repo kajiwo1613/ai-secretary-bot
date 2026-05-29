@@ -22,24 +22,25 @@ async def on_ready():
 @bot.command()
 async def ask(ctx, *, question):
     try:
-        # 💡 リストにあった最新の「gemini-2.5-flash」を設定
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=f"あなたは優秀なAI秘書です。\n質問：{question}"
         )
-        await ctx.send(response.text)
+        # 💡 Discordの2000文字制限対策（1900文字ずつに分割して送信）
+        for i in range(0, len(response.text), 1900):
+            await ctx.send(response.text[i:i+1900])
     except Exception as e:
         await ctx.send(f"エラー原因：{e}")
 
 @bot.command()
 async def pro(ctx, *, question):
     try:
-        # 💡 リストにあった最新で賢い「gemini-2.5-pro」を設定
         response = client.models.generate_content(
             model='gemini-2.5-pro',
             contents=f"あなたは優秀なAI秘書です。論理的に答えてください。\n質問：{question}"
         )
-        await ctx.send(response.text)
+        for i in range(0, len(response.text), 1900):
+            await ctx.send(response.text[i:i+1900])
     except Exception as e:
         await ctx.send(f"エラー原因：{e}")
 
@@ -79,12 +80,15 @@ async def search(ctx, *, question):
         
         await ctx.send("🧠 リサーチが完了しました。現在、得られた事実を論理的に分析・統合しています...")
         
-        # 💡 ここも最新の「gemini-2.5-pro」を設定
         answer = client.models.generate_content(
             model='gemini-2.5-pro',
             contents=prompt
         )
-        await ctx.send(answer.text)
+        
+        # 💡 Discordの2000文字制限対策（1900文字ずつに分割して送信）
+        answer_text = answer.text
+        for i in range(0, len(answer_text), 1900):
+            await ctx.send(answer_text[i:i+1900])
 
     except Exception as e:
         await ctx.send(f"検索エラー原因：{e}")
