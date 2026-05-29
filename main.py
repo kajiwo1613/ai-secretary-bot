@@ -22,23 +22,23 @@ async def on_ready():
 @bot.command()
 async def ask(ctx, *, question):
     try:
-        # 安定性とスピードに優れた 2.0-flash を採用
+        # 無料枠に余裕がある最新モデルに変更
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=f"あなたは優秀なAI秘書です。\n質問：{question}"
         )
         if response.text:
             for i in range(0, len(response.text), 1900):
                 await ctx.send(response.text[i:i+1900])
     except Exception as e:
-        # エラーが長くても1000文字でカットして強制送信！
         await ctx.send(f"エラー原因：{str(e)[:1000]}... (省略)")
 
 @bot.command()
 async def pro(ctx, *, question):
     try:
+        # リストにあった最新のProモデルを設定
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-pro',
             contents=f"あなたは優秀なAI秘書です。論理的に答えてください。\n質問：{question}"
         )
         if response.text:
@@ -83,9 +83,9 @@ async def search(ctx, *, question):
         
         await ctx.send("🧠 リサーチが完了しました。現在、得られた事実を論理的に分析・統合しています...")
         
-        # 安定性とスピードに優れた 2.0-flash を採用
+        # 無料枠に余裕がある最新モデルに変更
         answer = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=prompt
         )
         
@@ -96,7 +96,6 @@ async def search(ctx, *, question):
             await ctx.send("⚠️ 検索結果の分析に失敗しました。回答が空です。")
 
     except Exception as e:
-        # ここが今回の最大の原因！長すぎるエラー文を1000文字でカット！
         await ctx.send(f"検索エラー原因：{str(e)[:1000]}... (省略)")
 
 bot.run(DISCORD_TOKEN)
