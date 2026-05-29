@@ -1,2 +1,5 @@
 discord.py
-google-genai
+google-generativeai
+duckduckgo-search
+requests
+beautifulsoup4
