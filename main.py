@@ -10,8 +10,9 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 genai.configure(api_key=GEMINI_API_KEY)
-model_flash = genai.GenerativeModel('gemini-1.5-flash')
-model_pro = genai.GenerativeModel('gemini-1.5-pro')
+# ↓ ここを確実に認識される「latest（最新版）」の名前に変更しました
+model_flash = genai.GenerativeModel('gemini-1.5-flash-latest')
+model_pro = genai.GenerativeModel('gemini-1.5-pro-latest')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -38,13 +39,11 @@ async def pro(ctx, *, question):
     except Exception as e:
         await ctx.send(f"エラー原因：{e}")
 
-# ③ 極限まで緻密な検索を行う頭脳（コマンド: !search）
 @bot.command()
 async def search(ctx, *, question):
     await ctx.send("🔍 確証のある情報を得るため、複数のウェブサイトの中身を直接読み込んでいます。完了まで少し時間がかかります...")
     
     try:
-        # 1. 検索件数を「5件」に拡大
         search_results = DDGS().text(question, region='wt-wt', safesearch='off', max_results=5)
         
         if not search_results:
@@ -53,28 +52,20 @@ async def search(ctx, *, question):
 
         context = "【読み込んだウェブサイトの実際の情報】\n\n"
         
-        # 2. 見つけたサイトに直接アクセスし、中身のテキストを抽出する（スクレイピング）
         for index, result in enumerate(search_results):
             url = result.get('href')
             title = result.get('title')
             context += f"--- 情報源 {index+1}: {title} ---\nURL: {url}\n"
             
             try:
-                # サイトにアクセス（3秒で応答がなければスキップ）
                 response = requests.get(url, timeout=3)
                 response.encoding = response.apparent_encoding
                 soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # サイト内の文字だけを抽出
                 page_text = soup.get_text(separator=' ', strip=True)
-                
-                # 情報が多すぎるとAIがパンクするため、各サイト先頭2000文字を厳選して読み込ませる
                 context += f"内容: {page_text[:2000]}\n\n"
             except Exception:
-                # 読み込みブロックされているサイトは、検索エンジンの要約文で代用
                 context += f"内容: {result.get('body')}\n\n"
 
-        # 3. 膨大な事実データをPro版に渡し、厳密な回答を作らせる
         prompt = f"""
         あなたは優秀なAIリサーチャーです。以下の「読み込んだウェブサイトの実際の情報」という事実情報のみに基づいて、ユーザーの質問に正確に答えてください。
         憶測や不確かな情報は完全に排除し、サイトから得られた具体的・現実的な情報のみを提示してください。
@@ -85,7 +76,6 @@ async def search(ctx, *, question):
         【ユーザーの質問】: {question}
         """
         
-        # 処理時間がかかるため、状況をDiscordに送信
         await ctx.send("🧠 サイトの熟読が完了しました。現在、Pro版AIが情報を論理的に分析・統合しています...")
         
         answer = model_pro.generate_content(prompt)
@@ -95,3 +85,4 @@ async def search(ctx, *, question):
         await ctx.send(f"検索エラー原因：{e}")
 
 bot.run(DISCORD_TOKEN)
+
