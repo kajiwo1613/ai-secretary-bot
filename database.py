@@ -6,7 +6,7 @@ DB_FILE = "bot_data.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    # 期限・優先度・通知状態を管理するカラムを追加した拡張版テーブル
+    # 既存のテーブル作成
     c.execute('''CREATE TABLE IF NOT EXISTS todos (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, 
                     user_id INTEGER, 
@@ -20,7 +20,14 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS usage_logs (user_id INTEGER, date TEXT, count INTEGER, PRIMARY KEY(user_id, date))''')
     c.execute('''CREATE TABLE IF NOT EXISTS knowledge (id INTEGER PRIMARY KEY AUTOINCREMENT, keyword TEXT UNIQUE, content TEXT)''')
     
-    # 既存の古いデータベースがある場合への互換性維持（カラムの追加）
+    # 📥 毎朝のブリーフィング重複送信を防ぐための管理テーブルを追加
+    c.execute('''CREATE TABLE IF NOT EXISTS briefing_logs (
+                    user_id INTEGER, 
+                    date TEXT, 
+                    PRIMARY KEY(user_id, date)
+                 )''')
+
+    # 既存DBへの互換性維持カラム追加
     try:
         c.execute("ALTER TABLE todos ADD COLUMN deadline TEXT")
     except sqlite3.OperationalError: pass
@@ -57,7 +64,6 @@ def get_todos(user_id, filter_type="all"):
     elif filter_type == "3days":
         c.execute(base_query + " AND deadline >= date('now', 'localtime') AND deadline <= date('now', '+3 days', 'localtime')" + order_query, (user_id,))
     else:
-        # 全件（期限が設定されているものを上部にソート、その後は優先度順）
         c.execute(base_query + " ORDER BY CASE WHEN deadline IS NULL OR deadline = '' THEN 1 ELSE 0 END, deadline ASC, CASE priority WHEN '高' THEN 1 WHEN '中' THEN 2 WHEN '低' THEN 3 ELSE 4 END", (user_id,))
         
     todos = c.fetchall()
@@ -149,3 +155,27 @@ def update_todo_reminded(todo_id, column_name, value):
         c.execute(f"UPDATE todos SET {column_name} = ? WHERE id = ?", (value, todo_id))
     conn.commit()
     conn.close()
+
+# 👤 アクティブな（TODOを持っている）全ユーザーのIDを取得
+def get_all_users_with_todos():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT DISTINCT user_id FROM todos")
+    rows = c.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+# 📋 本日分のブリーフィングが未送信か確認し、送信済みにロックする
+def check_and_record_briefing(user_id):
+    today = datetime.now().strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT 1 FROM briefing_logs WHERE user_id = ? AND date = ?", (user_id, today))
+    row = c.fetchone()
+    if row:
+        conn.close()
+        return False
+    c.execute("INSERT INTO briefing_logs (user_id, date) VALUES (?, ?)", (user_id, today))
+    conn.commit()
+    conn.close()
+    return True
